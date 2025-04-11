@@ -270,18 +270,40 @@ const Agent = ({
       setIsReconnecting(false);
       reconnectAttemptsRef.current = 0;
 
-      // Refresh user sessions to ensure we have the latest data
-      if (userId) {
+      // NEWLY ADDED: Fetch the updated session data before redirecting
+      if (userId && currentSessionId) {
         try {
+          // Refresh user sessions to get the updated title and other information
           const refreshSessions = async () => {
             const sessions = await getInterviewsByUserId(userId);
             if (sessions) {
               setUserSessions(sessions);
+
+              // Update the current session data in the UI
+              const currentSession = sessions.find(
+                (session) => session.id === currentSessionId
+              );
+              if (currentSession) {
+                console.log("Updated session data:", currentSession);
+                // Retrieve questions from the updated session to use in examination phase
+                if (
+                  currentSession.questions &&
+                  currentSession.questions.length > 0
+                ) {
+                  setExtractedQuestions(currentSession.questions);
+                }
+              }
             }
           };
-          refreshSessions();
+          // Execute the async function immediately with proper error handling
+          refreshSessions().catch((e) =>
+            console.error("Error refreshing sessions:", e)
+          );
         } catch (error) {
-          console.error("Failed to refresh sessions on call end:", error);
+          console.error(
+            "Failed to refresh session data after preparation:",
+            error
+          );
         }
       }
 
@@ -748,6 +770,51 @@ const Agent = ({
         setCallStatus(CallStatus.CONNECTING);
         setErrorMessage(""); // Clear any previous errors
         setIsRetryAttempt(true); // Mark this as a retry attempt
+
+        // Fetch the latest session data if we're in examination phase
+        if (
+          sessionPhase === "examination" &&
+          userId &&
+          currentSessionId &&
+          !isRetryAttempt
+        ) {
+          try {
+            console.log("Fetching latest session data for examination phase");
+            const sessions = await getInterviewsByUserId(userId);
+            if (sessions) {
+              // Find the current session
+              const currentSession = sessions.find(
+                (session) => session.id === currentSessionId
+              );
+              if (currentSession) {
+                console.log("Current session for examination:", currentSession);
+
+                // Update local state with session data
+                if (
+                  currentSession.questions &&
+                  currentSession.questions.length > 0
+                ) {
+                  setExtractedQuestions(currentSession.questions);
+                }
+
+                // Update UI with session title if available
+                if (
+                  currentSession.role &&
+                  currentSession.role !== "Project Defense"
+                ) {
+                  // Add a message showing the project title
+                  const projectInfoMessage: SavedMessage = {
+                    role: "system",
+                    content: `Beginning defense examination for project: "${currentSession.role}"`,
+                  };
+                  setMessages((prev) => [...prev, projectInfoMessage]);
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Error fetching current session data:", error);
+          }
+        }
 
         // Format questions based on source
         let formattedQuestions = "";

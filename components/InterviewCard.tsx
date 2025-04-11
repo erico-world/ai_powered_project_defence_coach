@@ -56,7 +56,7 @@ const InterviewCard = ({
 
   const formattedDate = dayjs(
     feedback?.createdAt || createdAt || Date.now()
-  ).format("MMM D, YYYY");
+  ).format("MMM D, YYYY [at] h:mm A");
 
   const handleConfirmDelete = () => {
     setShowConfirmation(true);
@@ -99,6 +99,14 @@ const InterviewCard = ({
     }
   };
 
+  // Check if this is a session that's in preparation phase but not yet completed
+  const isPreparationPhase = role === "Project Defense" && !feedback;
+
+  // Get a more descriptive placeholder text based on session state
+  const placeholderText = isPreparationPhase
+    ? "This session is in the preparation phase. Complete the preparation to start your defense examination."
+    : "You haven't participated in this defense session yet. Start now to improve your project defense skills.";
+
   return (
     <div className="card-border w-[360px] max-sm:w-full min-h-96 relative">
       <div className="card-interview">
@@ -123,7 +131,14 @@ const InterviewCard = ({
           />
 
           {/* Project Title */}
-          <h3 className="mt-5 capitalize">{role}</h3>
+          <h3 className="mt-5 capitalize">
+            {role}
+            {isPreparationPhase && (
+              <span className="text-xs ml-2 p-1 bg-amber-700 rounded text-white">
+                Preparation
+              </span>
+            )}
+          </h3>
 
           {/* Date & Score */}
           <div className="flex flex-row gap-5 mt-3">
@@ -134,7 +149,7 @@ const InterviewCard = ({
                 height={22}
                 alt="calendar"
               />
-              <p>{formattedDate}</p>
+              <p className="text-sm whitespace-nowrap">{formattedDate}</p>
             </div>
 
             <div className="flex flex-row gap-2 items-center">
@@ -145,8 +160,7 @@ const InterviewCard = ({
 
           {/* Feedback or Placeholder Text */}
           <p className="line-clamp-2 mt-5">
-            {feedback?.finalAssessment ||
-              "You haven't participated in this defense session yet. Start now to improve your project defense skills."}
+            {feedback?.finalAssessment || placeholderText}
           </p>
         </div>
 
@@ -161,7 +175,11 @@ const InterviewCard = ({
                     : `/interview/${interviewId}`
                 }
               >
-                {feedback ? "View Feedback" : "Start Defense"}
+                {feedback
+                  ? "View Feedback"
+                  : isPreparationPhase
+                  ? "Continue Preparation"
+                  : "Start Defense"}
               </Link>
             </Button>
             <Button
