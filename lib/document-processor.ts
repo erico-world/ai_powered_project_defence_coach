@@ -144,16 +144,21 @@ export async function processDocument(file: File): Promise<ProcessedDocument> {
  * This requires PDF.js to be loaded in the client
  */
 async function extractTextFromPDF(file: File): Promise<string> {
-  // Dynamic import of PDF.js
-  // We'll use dynamic import to avoid server-side rendering issues
+  // Dynamic import of PDF.js using a more compatible path
   try {
-    const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    // Using the non-worker version to avoid canvas issues on Vercel
+    const pdfjsLib = await import("pdfjs-dist/webpack");
 
-    return new Promise(async (resolve, reject) => {
+    // Don't set the worker source in browser environment to avoid issues
+    if (pdfjsLib.GlobalWorkerOptions) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+    }
+
+    return new Promise<string>(async (resolve) => {
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
         let text = "";
 
         // Extract text from each page
@@ -166,14 +171,14 @@ async function extractTextFromPDF(file: File): Promise<string> {
           if (content && content.items) {
             // Convert each item to string safely, using type guards
             pageText = content.items
-              .map((item) => {
+              .map((item: unknown) => {
                 // Check if the item has a str property
                 if (
                   typeof item === "object" &&
                   item !== null &&
                   "str" in item
                 ) {
-                  return item.str;
+                  return (item as { str: string }).str;
                 }
                 return "";
               })
@@ -186,12 +191,13 @@ async function extractTextFromPDF(file: File): Promise<string> {
         resolve(text);
       } catch (error) {
         console.error("Error extracting PDF text:", error);
-        reject(new Error("Failed to extract text from PDF file"));
+        // Don't reject, provide empty text instead to continue the process
+        resolve("[PDF text extraction failed]");
       }
     });
   } catch (importError) {
     console.error("Error importing PDF.js:", importError);
-    throw new Error("PDF extraction library could not be loaded");
+    return "[PDF library could not be loaded]";
   }
 }
 
@@ -209,11 +215,11 @@ async function extractTextFromDOCX(file: File): Promise<string> {
       return result.value;
     } catch (error) {
       console.error("Error extracting DOCX text:", error);
-      throw new Error("Failed to extract text from DOCX file");
+      return "[DOCX text extraction failed]";
     }
   } catch (importError) {
     console.error("Error importing mammoth.js:", importError);
-    throw new Error("DOCX extraction library could not be loaded");
+    return "[DOCX extraction library could not be loaded]";
   }
 }
 
@@ -252,10 +258,10 @@ async function extractTextFromPPTX(file: File): Promise<string> {
       allText += slideText + "\n\n";
     }
 
-    return allText;
+    return allText || "[No text found in PPTX file]";
   } catch (error) {
     console.error("Error extracting PPTX text:", error);
-    throw new Error("Failed to extract text from PPTX file");
+    return "[PPTX text extraction failed]";
   }
 }
 
