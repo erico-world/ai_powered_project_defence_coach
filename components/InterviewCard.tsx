@@ -95,7 +95,7 @@ const InterviewCard = ({
       toast.error("Invalid session ID");
       return;
     }
-    
+
     try {
       setDeleting(true);
       if (feedback?.id) {
@@ -130,10 +130,11 @@ const InterviewCard = ({
 
   // Check if this is a session that's in preparation phase but not yet completed
   const isPreparationPhase = role === "Project Defense" && !feedback;
-  
+
   // Check if this is a session that has completed preparation and is ready for examination
-  const isReadyForExamination = role !== "Project Defense" && !feedback && type.includes("Defense");
-  
+  const isReadyForExamination =
+    role !== "Project Defense" && !feedback && type.includes("Defense");
+
   // Get a more descriptive placeholder text based on session state
   const placeholderText = isReadyForExamination
     ? "Preparation completed. Click 'Start Examination' to begin your defense with the Gemini AI examiner."
@@ -217,7 +218,7 @@ const InterviewCard = ({
                 {feedback
                   ? "View Feedback"
                   : isReadyForExamination
-                  ? "Start Examination" 
+                  ? "Start Examination"
                   : isPreparationPhase
                   ? "Continue Preparation"
                   : "Start Defense"}

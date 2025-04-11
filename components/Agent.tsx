@@ -283,11 +283,14 @@ const Agent = ({
             data: {
               status: "Ready for examination",
               updatedAt: new Date().toISOString(),
-            }
+            },
           });
-          
+
           if (!updateResult.success) {
-            console.error("Failed to update session preparation status:", updateResult.error);
+            console.error(
+              "Failed to update session preparation status:",
+              updateResult.error
+            );
           }
         } catch (error) {
           console.error("Error updating preparation status:", error);
@@ -311,26 +314,34 @@ const Agent = ({
             const sessions = await getInterviewsByUserId(userId);
             if (sessions) {
               setUserSessions(sessions);
-              
+
               // Update the current session data in the UI
-              const currentSession = sessions.find(session => session.id === currentSessionId);
+              const currentSession = sessions.find(
+                (session) => session.id === currentSessionId
+              );
               if (currentSession) {
                 console.log("Updated session data:", currentSession);
                 // Retrieve questions from the updated session to use in examination phase
-                if (currentSession.questions && currentSession.questions.length > 0) {
+                if (
+                  currentSession.questions &&
+                  currentSession.questions.length > 0
+                ) {
                   setExtractedQuestions(currentSession.questions);
                 }
               }
             }
           } catch (error) {
-            console.error("Failed to refresh session data after preparation:", error);
+            console.error(
+              "Failed to refresh session data after preparation:",
+              error
+            );
           }
         }
 
         // Add a message that instructs the user to return for examination
         const nextStepsMessage: SavedMessage = {
           role: "system",
-          content: 
+          content:
             "Please return to the home page and click 'Continue Preparation' on your session card to begin the examination phase with the Gemini AI examiner.",
         };
         setMessages((prev) => [...prev, nextStepsMessage]);
@@ -670,7 +681,9 @@ const Agent = ({
       // Create a defense session in Firebase first with more descriptive default values
       const { success, sessionId } = await createDefenseSession({
         userId: userId,
-        role: fileName ? fileName.replace(/\.(pdf|docx|pptx)$/i, "") : "Project Defense", // Use filename as initial title if available
+        role: fileName
+          ? fileName.replace(/\.(pdf|docx|pptx)$/i, "")
+          : "Project Defense", // Use filename as initial title if available
         type: "Defense Session",
         techstack: [],
         level: "To be determined during preparation",
