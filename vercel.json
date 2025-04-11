@@ -1,0 +1,11 @@
+{
+  "build": {
+    "env": {
+      "DISABLE_ESLINT_PLUGIN": "true"
+    }
+  },
+  "buildCommand": "npm run vercel-build",
+  "devCommand": "npm run dev",
+  "cleanUrls": true,
+  "installCommand": "npm install"
+}

@@ -1,5 +1,10 @@
 import Vapi from "@vapi-ai/web";
 
+interface WorkflowOptions {
+  variableValues?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 // Create a custom extended VAPI client with enhanced error handling
 class EnhancedVapi extends Vapi {
   private connectionTimeout: NodeJS.Timeout | null = null;
@@ -31,7 +36,7 @@ class EnhancedVapi extends Vapi {
   /**
    * Start a call with timeout protection and reconnection capability
    */
-  async start(workflowId: string, options?: any): Promise<void> {
+  async start(workflowId: string, options?: WorkflowOptions): Promise<void> {
     // Clear any existing timeout
     if (this.connectionTimeout) {
       clearTimeout(this.connectionTimeout);
@@ -126,9 +131,14 @@ class EnhancedVapi extends Vapi {
   /**
    * Determine if a reconnection attempt should be made based on the error
    */
-  private shouldAttemptReconnect(error: any): boolean {
+  private shouldAttemptReconnect(error: unknown): boolean {
     // If there's no error or it's an empty object, it's likely a connection issue
-    if (!error || Object.keys(error).length === 0) {
+    if (
+      !error ||
+      (typeof error === "object" &&
+        error !== null &&
+        Object.keys(error).length === 0)
+    ) {
       return true;
     }
 

@@ -13,15 +13,6 @@ const normalizeTechName = (tech: string) => {
   return mappings[key as keyof typeof mappings];
 };
 
-const checkIconExists = async (url: string) => {
-  try {
-    const response = await fetch(url, { method: "HEAD" });
-    return response.ok; // Returns true if the icon exists
-  } catch {
-    return false;
-  }
-};
-
 export const getTechLogos = async (techArray: string[] = []) => {
   // Handle case when techArray is undefined or null
   if (!techArray || !Array.isArray(techArray)) {

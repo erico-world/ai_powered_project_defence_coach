@@ -1,0 +1,18 @@
+# Test files
+lib/test-*.mjs
+lib/test-*.js
+lib/test-*.ts
+
+# Development-only files
+__tests__/
+test/
+tests/
+*.test.js
+*.test.ts
+*.test.tsx
+
+# Misc files
+README.md
+CHANGELOG.md
+LICENSE
+.github/ 
