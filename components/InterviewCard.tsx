@@ -10,12 +10,30 @@ import { toast } from "sonner";
 import { Button } from "./ui/button";
 import DisplayTechIcons from "./DisplayTechIcons";
 
-import { cn, getRandomInterviewCover } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   getFeedbackByInterviewId,
   deleteDefenseSession,
   deleteFeedback,
 } from "@/lib/actions/general.action";
+
+// Add the InterviewCardProps interface above the Feedback interface
+interface InterviewCardProps {
+  interviewId: string;
+  userId: string;
+  role: string;
+  type: string;
+  techstack?: string[];
+  createdAt?: string;
+}
+
+// Define the Feedback interface
+interface Feedback {
+  id: string;
+  createdAt: string;
+  totalScore: number;
+  finalAssessment: string;
+}
 
 const InterviewCard = ({
   interviewId,
@@ -27,7 +45,7 @@ const InterviewCard = ({
   onDelete,
 }: InterviewCardProps & { onDelete: (id: string) => void }) => {
   const [deleting, setDeleting] = useState(false);
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
   useEffect(() => {
@@ -38,9 +56,15 @@ const InterviewCard = ({
             interviewId,
             userId,
           });
-          setFeedback(feedbackData);
+          // Explicitly handle the possibility of null/undefined
+          if (feedbackData) {
+            setFeedback(feedbackData as Feedback);
+          } else {
+            setFeedback(null);
+          }
         } catch (error) {
           console.error("Error fetching feedback:", error);
+          setFeedback(null);
         }
       }
     };
@@ -67,6 +91,11 @@ const InterviewCard = ({
   };
 
   const handleDelete = async () => {
+    if (!interviewId) {
+      toast.error("Invalid session ID");
+      return;
+    }
+    
     try {
       setDeleting(true);
       if (feedback?.id) {
@@ -101,9 +130,14 @@ const InterviewCard = ({
 
   // Check if this is a session that's in preparation phase but not yet completed
   const isPreparationPhase = role === "Project Defense" && !feedback;
-
+  
+  // Check if this is a session that has completed preparation and is ready for examination
+  const isReadyForExamination = role !== "Project Defense" && !feedback && type.includes("Defense");
+  
   // Get a more descriptive placeholder text based on session state
-  const placeholderText = isPreparationPhase
+  const placeholderText = isReadyForExamination
+    ? "Preparation completed. Click 'Start Examination' to begin your defense with the Gemini AI examiner."
+    : isPreparationPhase
     ? "This session is in the preparation phase. Complete the preparation to start your defense examination."
     : "You haven't participated in this defense session yet. Start now to improve your project defense skills.";
 
@@ -136,6 +170,11 @@ const InterviewCard = ({
             {isPreparationPhase && (
               <span className="text-xs ml-2 p-1 bg-amber-700 rounded text-white">
                 Preparation
+              </span>
+            )}
+            {isReadyForExamination && (
+              <span className="text-xs ml-2 p-1 bg-green-700 rounded text-white">
+                Ready for Examination
               </span>
             )}
           </h3>
@@ -177,6 +216,8 @@ const InterviewCard = ({
               >
                 {feedback
                   ? "View Feedback"
+                  : isReadyForExamination
+                  ? "Start Examination" 
                   : isPreparationPhase
                   ? "Continue Preparation"
                   : "Start Defense"}

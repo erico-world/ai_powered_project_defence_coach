@@ -264,69 +264,81 @@ const Agent = ({
       reconnectAttemptsRef.current = 0;
     };
 
-    const onCallEnd = () => {
+    const onCallEnd = async () => {
       console.log("Call ended normally");
       setCallStatus(CallStatus.FINISHED);
       setIsReconnecting(false);
       reconnectAttemptsRef.current = 0;
-
-      // NEWLY ADDED: Fetch the updated session data before redirecting
-      if (userId && currentSessionId) {
-        try {
-          // Refresh user sessions to get the updated title and other information
-          const refreshSessions = async () => {
-            const sessions = await getInterviewsByUserId(userId);
-            if (sessions) {
-              setUserSessions(sessions);
-
-              // Update the current session data in the UI
-              const currentSession = sessions.find(
-                (session) => session.id === currentSessionId
-              );
-              if (currentSession) {
-                console.log("Updated session data:", currentSession);
-                // Retrieve questions from the updated session to use in examination phase
-                if (
-                  currentSession.questions &&
-                  currentSession.questions.length > 0
-                ) {
-                  setExtractedQuestions(currentSession.questions);
-                }
-              }
-            }
-          };
-          // Execute the async function immediately with proper error handling
-          refreshSessions().catch((e) =>
-            console.error("Error refreshing sessions:", e)
-          );
-        } catch (error) {
-          console.error(
-            "Failed to refresh session data after preparation:",
-            error
-          );
-        }
-      }
 
       if (sessionPhase === "preparation") {
         // First session ended (preparation phase)
         setSessionPhase("examination");
         toast.success("Project preparation phase completed!");
 
+        // Mark this session as having completed preparation phase in Firebase
+        try {
+          console.log("Updating session preparation status:", currentSessionId);
+          const updateResult = await updateDefenseSession({
+            sessionId: currentSessionId,
+            data: {
+              status: "Ready for examination",
+              updatedAt: new Date().toISOString(),
+            }
+          });
+          
+          if (!updateResult.success) {
+            console.error("Failed to update session preparation status:", updateResult.error);
+          }
+        } catch (error) {
+          console.error("Error updating preparation status:", error);
+        }
+
         // Add system message to indicate phase transition
         const phaseTransitionMessage: SavedMessage = {
           role: "system",
           content:
-            "Project preparation completed. You are now ready for the defense examination.",
+            "Project preparation completed. You are now ready for the defense examination with the Gemini AI examiner.",
         };
         setMessages((prev) => [...prev, phaseTransitionMessage]);
 
         // Set transitioning state to handle UI and prevent immediate feedback
         setIsTransitioning(true);
 
+        // Fetch the updated session data before redirecting
+        if (userId && currentSessionId) {
+          try {
+            // Refresh user sessions to get the updated title and other information
+            const sessions = await getInterviewsByUserId(userId);
+            if (sessions) {
+              setUserSessions(sessions);
+              
+              // Update the current session data in the UI
+              const currentSession = sessions.find(session => session.id === currentSessionId);
+              if (currentSession) {
+                console.log("Updated session data:", currentSession);
+                // Retrieve questions from the updated session to use in examination phase
+                if (currentSession.questions && currentSession.questions.length > 0) {
+                  setExtractedQuestions(currentSession.questions);
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Failed to refresh session data after preparation:", error);
+          }
+        }
+
+        // Add a message that instructs the user to return for examination
+        const nextStepsMessage: SavedMessage = {
+          role: "system",
+          content: 
+            "Please return to the home page and click 'Continue Preparation' on your session card to begin the examination phase with the Gemini AI examiner.",
+        };
+        setMessages((prev) => [...prev, nextStepsMessage]);
+
         // Don't generate feedback yet, wait for examination phase
         setTimeout(() => {
           router.push("/");
-        }, 1500);
+        }, 2500); // Extended delay to ensure the user sees the instructions
       } else if (sessionPhase === "examination" && readyForFeedback) {
         // Second session ended (examination phase) and ready for feedback
         // Only generate feedback if we have enough messages
@@ -655,14 +667,14 @@ const Agent = ({
         );
       }
 
-      // Create a defense session in Firebase first
+      // Create a defense session in Firebase first with more descriptive default values
       const { success, sessionId } = await createDefenseSession({
         userId: userId,
-        role: "Project Defense",
+        role: fileName ? fileName.replace(/\.(pdf|docx|pptx)$/i, "") : "Project Defense", // Use filename as initial title if available
         type: "Defense Session",
         techstack: [],
-        level: "To be determined",
-        focusRatio: "To be determined",
+        level: "To be determined during preparation",
+        focusRatio: "To be determined during preparation",
         // Pass custom questions if available
         questions: customQuestions.length > 0 ? customQuestions : undefined,
       });
@@ -680,8 +692,8 @@ const Agent = ({
       const summaryMessage: SavedMessage = {
         role: "system" as const,
         content: extractedText
-          ? `Defense session prepared with document analysis. Generated ${customQuestions.length} custom questions based on your document. Starting your defense session now...`
-          : `Defense session prepared. Starting your defense session now...`,
+          ? `Defense session prepared with document analysis. Generated ${customQuestions.length} custom questions based on your document. Starting your defense preparation...`
+          : `Defense session prepared. Starting your defense preparation...`,
       };
       setMessages([summaryMessage]);
 
@@ -689,7 +701,7 @@ const Agent = ({
       const prepPhaseMessage: SavedMessage = {
         role: "system",
         content:
-          "Starting project preparation phase. The AI coach will gather information about your project to prepare for your defense examination.",
+          "Starting project preparation phase. The AI coach will gather information about your project to prepare for your defense examination. This information will be used by the Gemini AI examiner in the next phase.",
       };
       setMessages([prepPhaseMessage]);
 
@@ -722,6 +734,8 @@ const Agent = ({
             // Add flag to indicate this is for gathering info, not examination
             isExaminer: false,
             isPrepPhase: true,
+            // Do not use Gemini AI for preparation, only for examination
+            useGeminiForExamination: false,
             hasDocumentContext: extractedText ? true : false,
           },
         });
@@ -772,6 +786,11 @@ const Agent = ({
         setIsRetryAttempt(true); // Mark this as a retry attempt
 
         // Fetch the latest session data if we're in examination phase
+        let projectTitle = "Project Defense";
+        let academicLevel = "";
+        let technologies: string[] = [];
+        let sessionContext = "";
+
         if (
           sessionPhase === "examination" &&
           userId &&
@@ -797,18 +816,41 @@ const Agent = ({
                   setExtractedQuestions(currentSession.questions);
                 }
 
-                // Update UI with session title if available
+                // Capture session information for Gemini context
                 if (
                   currentSession.role &&
                   currentSession.role !== "Project Defense"
                 ) {
-                  // Add a message showing the project title
-                  const projectInfoMessage: SavedMessage = {
-                    role: "system",
-                    content: `Beginning defense examination for project: "${currentSession.role}"`,
-                  };
-                  setMessages((prev) => [...prev, projectInfoMessage]);
+                  projectTitle = currentSession.role;
                 }
+
+                if (currentSession.level) {
+                  academicLevel = currentSession.level;
+                }
+
+                if (
+                  currentSession.techstack &&
+                  Array.isArray(currentSession.techstack)
+                ) {
+                  technologies = currentSession.techstack;
+                }
+
+                // Build context string for Gemini AI
+                sessionContext = `Project Title: ${projectTitle}\n`;
+                sessionContext += academicLevel
+                  ? `Academic Level: ${academicLevel}\n`
+                  : "";
+                sessionContext +=
+                  technologies.length > 0
+                    ? `Technologies: ${technologies.join(", ")}\n`
+                    : "";
+
+                // Add a message showing the project title
+                const projectInfoMessage: SavedMessage = {
+                  role: "system",
+                  content: `Beginning defense examination for project: "${projectTitle}"`,
+                };
+                setMessages((prev) => [...prev, projectInfoMessage]);
               }
             }
           } catch (error) {
@@ -888,8 +930,15 @@ const Agent = ({
             isTransitioning: false,
             // Add a flag to tell the AI to be an examiner in examination phase
             isExaminer: sessionPhase === "examination",
+            // IMPORTANT: Specify that Gemini AI should be used for examination phase
+            useGeminiForExamination: sessionPhase === "examination",
             // Add a flag for whether this has document context
             hasDocumentContext: extractedQuestions.length > 0,
+            // Add project context information
+            projectContext: sessionContext,
+            projectTitle: projectTitle,
+            academicLevel: academicLevel,
+            technologies: technologies.join(", "),
           },
         });
 
