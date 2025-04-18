@@ -300,14 +300,14 @@ const Agent = ({
         const phaseTransitionMessage: SavedMessage = {
           role: "system",
           content:
-            "Project preparation completed. You are now ready for the defense examination with the Gemini AI examiner.",
+            "Project preparation completed. Now starting the defense examination with the Gemini AI examiner.",
         };
         setMessages((prev) => [...prev, phaseTransitionMessage]);
 
-        // Set transitioning state to handle UI and prevent immediate feedback
+        // Set transitioning state
         setIsTransitioning(true);
 
-        // Fetch the updated session data before redirecting
+        // Fetch the updated session data before starting examination
         if (userId && currentSessionId) {
           try {
             // Refresh user sessions to get the updated title and other information
@@ -338,18 +338,29 @@ const Agent = ({
           }
         }
 
-        // Add a message that instructs the user to return for examination
-        const nextStepsMessage: SavedMessage = {
-          role: "system",
-          content:
-            "Please return to the home page and click 'Continue Preparation' on your session card to begin the examination phase with the Gemini AI examiner.",
-        };
-        setMessages((prev) => [...prev, nextStepsMessage]);
+        // Add a small delay to ensure state updates are processed
+        setTimeout(async () => {
+          // Automatically start the examination phase
+          try {
+            console.log(
+              "Automatically starting examination phase with Gemini AI"
+            );
+            await handleCall(); // This will now use sessionPhase = "examination"
+          } catch (error) {
+            console.error("Failed to auto-start examination phase:", error);
+            toast.error(
+              "Failed to start examination. Please try again manually."
+            );
 
-        // Don't generate feedback yet, wait for examination phase
-        setTimeout(() => {
-          router.push("/");
-        }, 2500); // Extended delay to ensure the user sees the instructions
+            // Add guidance message for manual restart
+            const manualRestartMessage: SavedMessage = {
+              role: "system",
+              content:
+                "Please click the 'Start Defense' button to begin the examination phase with the Gemini AI examiner.",
+            };
+            setMessages((prev) => [...prev, manualRestartMessage]);
+          }
+        }, 2000);
       } else if (sessionPhase === "examination" && readyForFeedback) {
         // Second session ended (examination phase) and ready for feedback
         // Only generate feedback if we have enough messages
@@ -952,6 +963,11 @@ const Agent = ({
             projectTitle: projectTitle,
             academicLevel: academicLevel,
             technologies: technologies.join(", "),
+            // Add the document text from the project file if available
+            documentText:
+              sessionPhase === "examination" && extractedQuestions.length > 0
+                ? "Document analysis has been performed and questions have been extracted."
+                : "",
           },
         });
 

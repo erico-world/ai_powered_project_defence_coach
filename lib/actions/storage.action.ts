@@ -26,16 +26,25 @@ export async function uploadFile(
       `Attempting to upload file: ${filename}, type: ${contentType}, size: ${fileBuffer.byteLength} bytes`
     );
 
+    // First extract text from the file regardless of storage issues
+    console.log(`Extracting text from file...`);
+    const extractedText = await extractTextFromFile(
+      Buffer.from(fileBuffer),
+      contentType,
+      filename
+    );
+    console.log(`Text extraction complete.`);
+
     // Check if Firebase Storage is available
     if (!firebaseStorage) {
       console.error(
-        "Firebase Storage is not initialized. Check your environment variables."
+        "Firebase Storage is not initialized. Using local text extraction only."
       );
       return {
-        success: false,
-        error: "Storage not available",
+        success: true, // Modified to report success even without storage upload
+        error: "Storage not available but text extracted successfully",
         url: "placeholder-url",
-        extractedText: "No storage available to extract text from document.",
+        extractedText: extractedText, // Return the extracted text
       };
     }
 
@@ -71,15 +80,6 @@ export async function uploadFile(
       const publicUrl = `https://storage.googleapis.com/${bucketName}/${fullPath}`;
       console.log(`File uploaded successfully. Public URL: ${publicUrl}`);
 
-      // Extract text from the file
-      console.log(`Extracting text from file...`);
-      const extractedText = await extractTextFromFile(
-        Buffer.from(fileBuffer),
-        contentType,
-        filename
-      );
-      console.log(`Text extraction complete.`);
-
       return {
         success: true,
         url: publicUrl,
@@ -87,22 +87,18 @@ export async function uploadFile(
       };
     } catch (uploadError) {
       console.error(`Error during file upload operations:`, uploadError);
-      // Even if upload fails, continue with text extraction to provide some functionality
-      console.log(`Attempting text extraction despite upload failure...`);
-      const extractedText = await extractTextFromFile(
-        Buffer.from(fileBuffer),
-        contentType,
-        filename
-      );
+      // Even if upload fails, we already have the extracted text
+      console.log(`Using text extraction despite upload failure...`);
 
       return {
-        success: false,
-        error:
+        success: true, // Modified to report success even with upload failure
+        error: `Storage error but text extracted: ${
           uploadError instanceof Error
             ? uploadError.message
-            : String(uploadError),
+            : String(uploadError)
+        }`,
         url: "placeholder-url",
-        extractedText: extractedText, // Still return the extracted text for question generation
+        extractedText: extractedText, // Return the extracted text
       };
     }
   } catch (error) {
